@@ -381,7 +381,7 @@ describe("CloudManagedEndpointRuntime", () => {
         status: "failed",
         providerKind: "cloudflare_tunnel",
         reason:
-          "Relay client did not register a tunnel connection within 15 seconds. Last warning: 2026-08-27T10:00:00Z WRN Failed to dial edge with <redacted>",
+          "Relay client did not register a tunnel connection within 15 seconds. Check whether the network allows outbound TCP and UDP traffic on port 7844.",
         tunnelId: "tunnel-1",
       });
       expect(killed).toEqual([600]);

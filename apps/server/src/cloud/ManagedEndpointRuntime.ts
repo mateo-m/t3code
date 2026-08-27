@@ -67,7 +67,6 @@ export class CloudManagedEndpointRuntime extends Context.Service<
 interface ActiveConnector {
   readonly child: ChildProcessSpawner.ChildProcessHandle;
   readonly connected: Deferred.Deferred<void>;
-  readonly lastWarning: Ref.Ref<string | null>;
   readonly scope: Scope.Closeable;
   readonly configKey: string;
   readonly config: RelayManagedEndpointRuntimeConfig;
@@ -135,15 +134,14 @@ export const make = Effect.gen(function* () {
       } satisfies CloudManagedEndpointRuntimeStatus;
     }
 
-    const lastWarning = yield* Ref.get(connector.lastWarning);
     yield* stopActive;
     const reason = Option.isSome(outcome)
       ? "Relay client exited before it registered a tunnel connection."
-      : `Relay client did not register a tunnel connection within ${RELAY_CONNECTION_TIMEOUT}.`;
+      : `Relay client did not register a tunnel connection within ${RELAY_CONNECTION_TIMEOUT}. Check whether the network allows outbound TCP and UDP traffic on port 7844.`;
     return {
       status: "failed",
       providerKind: "cloudflare_tunnel",
-      reason: lastWarning ? `${reason} Last warning: ${lastWarning}` : reason,
+      reason,
       ...(connector.config.tunnelId ? { tunnelId: connector.config.tunnelId } : {}),
       ...(connector.config.tunnelName ? { tunnelName: connector.config.tunnelName } : {}),
     } satisfies CloudManagedEndpointRuntimeStatus;
@@ -210,11 +208,7 @@ export const make = Effect.gen(function* () {
               ),
             );
           case "warning":
-            return Ref.set(connector.lastWarning, output).pipe(
-              Effect.andThen(
-                Effect.logWarning("Relay client reported a transport warning", attributes),
-              ),
-            );
+            return Effect.logWarning("Relay client reported a transport warning", attributes);
           case "debug":
             return Effect.logDebug("Relay client output", attributes);
         }
@@ -309,11 +303,9 @@ export const make = Effect.gen(function* () {
 
     if (!("status" in child)) {
       const connected = yield* Deferred.make<void>();
-      const lastWarning = yield* Ref.make<string | null>(null);
       const connector = {
         child,
         connected,
-        lastWarning,
         scope: connectorScope,
         configKey: nextConfigKey,
         config,
