@@ -8,6 +8,7 @@ import * as Option from "effect/Option";
 import * as PlatformError from "effect/PlatformError";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
+import * as TestClock from "effect/testing/TestClock";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import * as RelayClient from "@t3tools/shared/relayClient";
 
@@ -60,6 +61,7 @@ function makeHandle(input: {
   readonly onKill: () => void;
   readonly isRunning?: () => boolean;
   readonly exitCode?: Effect.Effect<ChildProcessSpawner.ExitCode>;
+  readonly all?: ChildProcessSpawner.ChildProcessHandle["all"];
 }) {
   return ChildProcessSpawner.makeHandle({
     pid: ChildProcessSpawner.ProcessId(input.pid),
@@ -73,7 +75,13 @@ function makeHandle(input: {
     stdin: Sink.drain,
     stdout: Stream.empty,
     stderr: Stream.empty,
-    all: Stream.empty,
+    all:
+      input.all ??
+      Stream.make(
+        new TextEncoder().encode(
+          "2026-08-27T10:00:00Z INF Registered tunnel connection connIndex=0\n",
+        ),
+      ),
     getInputFd: () => Sink.drain,
     getOutputFd: () => Stream.empty,
   });
@@ -330,6 +338,88 @@ describe("CloudManagedEndpointRuntime", () => {
       expect(status).toMatchObject({ status: "running", pid: 501 });
       expect(spawned).toEqual([500, 501]);
       expect(killed).toEqual([500]);
+    }),
+  );
+
+  it.effect("does not report a running connector before Cloudflare registers it", () =>
+    Effect.gen(function* () {
+      const killed: Array<number> = [];
+      const spawner = ChildProcessSpawner.make(() =>
+        Effect.gen(function* () {
+          const handle = makeHandle({
+            pid: 600,
+            all: Stream.make(
+              new TextEncoder().encode(
+                "2026-08-27T10:00:00Z WRN Failed to dial edge with token-secret\n",
+              ),
+            ).pipe(Stream.concat(Stream.never)),
+            onKill: () => {
+              killed.push(600);
+            },
+          });
+          yield* Effect.addFinalizer(() => handle.kill().pipe(Effect.ignore));
+          return handle;
+        }),
+      );
+      const runtime = yield* buildCloudManagedEndpointRuntime(spawner);
+
+      const statusFiber = yield* runtime
+        .applyConfig({
+          providerKind: "cloudflare_tunnel",
+          connectorToken: "token-secret",
+          tunnelId: "tunnel-1",
+        })
+        .pipe(Effect.forkChild);
+      yield* Effect.yieldNow;
+
+      expect(statusFiber.pollUnsafe()).toBeUndefined();
+
+      yield* TestClock.adjust("15 seconds");
+      const status = yield* Fiber.join(statusFiber);
+
+      expect(status).toMatchObject({
+        status: "failed",
+        providerKind: "cloudflare_tunnel",
+        reason:
+          "Relay client did not register a tunnel connection within 15 seconds. Last warning: 2026-08-27T10:00:00Z WRN Failed to dial edge with <redacted>",
+        tunnelId: "tunnel-1",
+      });
+      expect(killed).toEqual([600]);
+    }),
+  );
+
+  it.effect("reports a connector that exits before Cloudflare registers it", () =>
+    Effect.gen(function* () {
+      const killed: Array<number> = [];
+      const spawner = ChildProcessSpawner.make(() =>
+        Effect.gen(function* () {
+          const handle = makeHandle({
+            pid: 601,
+            all: Stream.never,
+            exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(1)),
+            onKill: () => {
+              killed.push(601);
+            },
+          });
+          yield* Effect.addFinalizer(() => handle.kill().pipe(Effect.ignore));
+          return handle;
+        }),
+      );
+      const runtime = yield* buildCloudManagedEndpointRuntime(spawner);
+
+      const status = yield* runtime.applyConfig({
+        providerKind: "cloudflare_tunnel",
+        connectorToken: "token-secret",
+        tunnelId: "tunnel-1",
+      });
+
+      expect(status).toMatchObject({
+        status: "failed",
+        providerKind: "cloudflare_tunnel",
+        reason: "Relay client exited before it registered a tunnel connection.",
+        tunnelId: "tunnel-1",
+      });
+      expect(killed).toEqual([601]);
     }),
   );
 

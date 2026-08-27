@@ -1,6 +1,7 @@
 import type { RelayManagedEndpointRuntimeConfig } from "@t3tools/contracts/relay";
 import * as RelayClient from "@t3tools/shared/relayClient";
 import * as Context from "effect/Context";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
@@ -15,6 +16,8 @@ import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawne
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import { CLOUD_ENDPOINT_RUNTIME_CONFIG, decodeRuntimeConfig } from "./config.ts";
+
+const RELAY_CONNECTION_TIMEOUT = "15 seconds";
 
 function bytesToString(bytes: Uint8Array): string {
   return new TextDecoder().decode(bytes);
@@ -63,6 +66,8 @@ export class CloudManagedEndpointRuntime extends Context.Service<
 
 interface ActiveConnector {
   readonly child: ChildProcessSpawner.ChildProcessHandle;
+  readonly connected: Deferred.Deferred<void>;
+  readonly lastWarning: Ref.Ref<string | null>;
   readonly scope: Scope.Closeable;
   readonly configKey: string;
   readonly config: RelayManagedEndpointRuntimeConfig;
@@ -110,6 +115,38 @@ export const make = Effect.gen(function* () {
   const stopActive = Effect.gen(function* () {
     const active = yield* Ref.getAndSet(activeRef, null);
     yield* stopConnector(active);
+  });
+
+  const awaitConnectorConnection = Effect.fn(
+    "CloudManagedEndpointRuntime.awaitConnectorConnection",
+  )(function* (connector: ActiveConnector) {
+    const outcome = yield* Deferred.await(connector.connected).pipe(
+      Effect.as("connected" as const),
+      Effect.race(Effect.result(connector.child.exitCode).pipe(Effect.as("exited" as const))),
+      Effect.timeoutOption(RELAY_CONNECTION_TIMEOUT),
+    );
+    if (Option.isSome(outcome) && outcome.value === "connected") {
+      return {
+        status: "running",
+        providerKind: "cloudflare_tunnel",
+        pid: Number(connector.child.pid),
+        ...(connector.config.tunnelId ? { tunnelId: connector.config.tunnelId } : {}),
+        ...(connector.config.tunnelName ? { tunnelName: connector.config.tunnelName } : {}),
+      } satisfies CloudManagedEndpointRuntimeStatus;
+    }
+
+    const lastWarning = yield* Ref.get(connector.lastWarning);
+    yield* stopActive;
+    const reason = Option.isSome(outcome)
+      ? "Relay client exited before it registered a tunnel connection."
+      : `Relay client did not register a tunnel connection within ${RELAY_CONNECTION_TIMEOUT}.`;
+    return {
+      status: "failed",
+      providerKind: "cloudflare_tunnel",
+      reason: lastWarning ? `${reason} Last warning: ${lastWarning}` : reason,
+      ...(connector.config.tunnelId ? { tunnelId: connector.config.tunnelId } : {}),
+      ...(connector.config.tunnelName ? { tunnelName: connector.config.tunnelName } : {}),
+    } satisfies CloudManagedEndpointRuntimeStatus;
   });
 
   const superviseConnector = (connector: ActiveConnector) =>
@@ -167,9 +204,17 @@ export const make = Effect.gen(function* () {
         };
         switch (classifyRelayClientOutput(line)) {
           case "connected":
-            return Effect.logInfo("Relay client tunnel connection registered", attributes);
+            return Deferred.succeed(connector.connected, undefined).pipe(
+              Effect.andThen(
+                Effect.logInfo("Relay client tunnel connection registered", attributes),
+              ),
+            );
           case "warning":
-            return Effect.logWarning("Relay client reported a transport warning", attributes);
+            return Ref.set(connector.lastWarning, output).pipe(
+              Effect.andThen(
+                Effect.logWarning("Relay client reported a transport warning", attributes),
+              ),
+            );
           case "debug":
             return Effect.logDebug("Relay client output", attributes);
         }
@@ -197,13 +242,7 @@ export const make = Effect.gen(function* () {
     if (active?.configKey === nextConfigKey) {
       const isRunning = yield* active.child.isRunning.pipe(Effect.orElseSucceed(() => false));
       if (isRunning) {
-        return {
-          status: "running",
-          providerKind: "cloudflare_tunnel",
-          pid: Number(active.child.pid),
-          ...(active.config.tunnelId ? { tunnelId: active.config.tunnelId } : {}),
-          ...(active.config.tunnelName ? { tunnelName: active.config.tunnelName } : {}),
-        } satisfies CloudManagedEndpointRuntimeStatus;
+        return yield* awaitConnectorConnection(active);
       }
     }
 
@@ -269,8 +308,12 @@ export const make = Effect.gen(function* () {
     }
 
     if (!("status" in child)) {
+      const connected = yield* Deferred.make<void>();
+      const lastWarning = yield* Ref.make<string | null>(null);
       const connector = {
         child,
+        connected,
+        lastWarning,
         scope: connectorScope,
         configKey: nextConfigKey,
         config,
@@ -278,13 +321,7 @@ export const make = Effect.gen(function* () {
       yield* Ref.set(activeRef, connector);
       yield* Effect.forkIn(observeConnectorOutput(connector), connectorScope);
       yield* Effect.forkIn(superviseConnector(connector), connectorScope);
-      return {
-        status: "running",
-        providerKind: "cloudflare_tunnel",
-        pid: Number(child.pid),
-        ...(config.tunnelId ? { tunnelId: config.tunnelId } : {}),
-        ...(config.tunnelName ? { tunnelName: config.tunnelName } : {}),
-      } satisfies CloudManagedEndpointRuntimeStatus;
+      return yield* awaitConnectorConnection(connector);
     }
 
     return {
