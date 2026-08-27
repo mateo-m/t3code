@@ -60,6 +60,7 @@ import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import { requireEnvironmentScope } from "../auth/http.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import { formatHostForUrl } from "../startupAccess.ts";
 import * as ManagedEndpointRuntime from "./ManagedEndpointRuntime.ts";
 import {
   SERVICE_STATE_FILE,
@@ -324,6 +325,26 @@ function isAllowedEndpointOrigin(input: {
   return input.origin.localHttpPort === endpointRequestPort(url);
 }
 
+export function managedTunnelOriginForAddress(
+  address: HttpServer.Address,
+): RelayManagedEndpointOrigin | null {
+  if (address._tag !== "TcpAddress") {
+    return null;
+  }
+
+  const listenerHost = normalizeHostname(address.hostname);
+  const localHttpHost =
+    listenerHost === "0.0.0.0" ? "127.0.0.1" : listenerHost === "::" ? "::1" : listenerHost;
+  if (!isLoopbackHostname(localHttpHost)) {
+    return null;
+  }
+
+  return {
+    localHttpHost,
+    localHttpPort: address.port,
+  };
+}
+
 // A managed (Cloudflare tunnel) endpoint is provisioned by the relay and must
 // point at a loopback origin. A manual endpoint is reached out of band (e.g.
 // Tailscale) or not advertised at all for publish-only links, so it is not
@@ -449,8 +470,9 @@ const cloudLinkProofHandler = Effect.fn("environment.cloud.linkProof")(
     let proofRequestUrl = requestUrl;
     if (request.endpoint.providerKind === "cloudflare_tunnel") {
       const server = yield* HttpServer.HttpServer;
+      const listenerOrigin = managedTunnelOriginForAddress(server.address);
       if (
-        server.address._tag !== "TcpAddress" ||
+        listenerOrigin === null ||
         !hasAllowedEndpointOriginHost({ origin: request.origin, requestUrl })
       ) {
         return yield* new EnvironmentHttpBadRequestError({
@@ -459,12 +481,9 @@ const cloudLinkProofHandler = Effect.fn("environment.cloud.linkProof")(
       }
       proofRequest = {
         ...request,
-        origin: {
-          localHttpHost: "127.0.0.1",
-          localHttpPort: server.address.port,
-        },
+        origin: listenerOrigin,
       };
-      proofRequestUrl = `http://127.0.0.1:${server.address.port}`;
+      proofRequestUrl = `http://${formatHostForUrl(listenerOrigin.localHttpHost)}:${listenerOrigin.localHttpPort}`;
     }
     const proof = yield* makeCloudLinkProof(dependencies, proofRequest, proofRequestUrl);
     yield* appendCloudCredentialResponseHeaders;
