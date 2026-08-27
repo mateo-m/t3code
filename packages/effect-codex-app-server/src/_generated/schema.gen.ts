@@ -20413,8 +20413,17 @@ export type ServerNotification__ThreadItem =
       readonly reasoningEffort?: ServerNotification__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -21500,8 +21509,17 @@ export type V2ItemCompletedNotification__ThreadItem =
       readonly reasoningEffort?: V2ItemCompletedNotification__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -21955,8 +21973,17 @@ export type V2ItemStartedNotification__ThreadItem =
       readonly reasoningEffort?: V2ItemStartedNotification__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -22582,8 +22609,17 @@ export type V2ReviewStartResponse__ThreadItem =
       readonly reasoningEffort?: V2ReviewStartResponse__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -23022,8 +23058,17 @@ export type V2ThreadForkResponse__ThreadItem =
       readonly reasoningEffort?: V2ThreadForkResponse__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -23431,8 +23476,17 @@ export type V2ThreadListResponse__ThreadItem =
       readonly reasoningEffort?: V2ThreadListResponse__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -23842,8 +23896,17 @@ export type V2ThreadMetadataUpdateResponse__ThreadItem =
       readonly reasoningEffort?: V2ThreadMetadataUpdateResponse__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -24254,8 +24317,17 @@ export type V2ThreadReadResponse__ThreadItem =
       readonly reasoningEffort?: V2ThreadReadResponse__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -24671,8 +24743,17 @@ export type V2ThreadResumeResponse__ThreadItem =
       readonly reasoningEffort?: V2ThreadResumeResponse__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -25080,8 +25161,17 @@ export type V2ThreadRollbackResponse__ThreadItem =
       readonly reasoningEffort?: V2ThreadRollbackResponse__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -25503,8 +25593,17 @@ export type V2ThreadStartedNotification__ThreadItem =
       readonly reasoningEffort?: V2ThreadStartedNotification__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -25915,8 +26014,17 @@ export type V2ThreadStartResponse__ThreadItem =
       readonly reasoningEffort?: V2ThreadStartResponse__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -26324,8 +26432,17 @@ export type V2ThreadUnarchiveResponse__ThreadItem =
       readonly reasoningEffort?: V2ThreadUnarchiveResponse__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -26738,8 +26855,17 @@ export type V2TurnCompletedNotification__ThreadItem =
       readonly reasoningEffort?: V2TurnCompletedNotification__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -27150,8 +27276,17 @@ export type V2TurnStartedNotification__ThreadItem =
       readonly reasoningEffort?: V2TurnStartedNotification__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
@@ -27562,8 +27697,17 @@ export type V2TurnStartResponse__ThreadItem =
       readonly reasoningEffort?: V2TurnStartResponse__ReasoningEffort | null;
       readonly receiverThreadIds: ReadonlyArray<string>;
       readonly senderThreadId: string;
-      readonly status: "inProgress" | "completed" | "failed";
-      readonly tool: "spawnAgent" | "sendInput" | "resumeAgent" | "wait" | "closeAgent";
+      readonly status: "inProgress" | "completed" | "failed" | "interrupted";
+      readonly tool:
+        | "spawnAgent"
+        | "sendInput"
+        | "resumeAgent"
+        | "wait"
+        | "closeAgent"
+        | "sendMessage"
+        | "followupTask"
+        | "interruptAgent"
+        | "listAgents";
       readonly type: "collabAgentToolCall";
     }
   | {
