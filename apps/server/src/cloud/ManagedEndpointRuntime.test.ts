@@ -423,6 +423,41 @@ describe("CloudManagedEndpointRuntime", () => {
     }),
   );
 
+  it.effect("stops a connector when its first configuration is interrupted", () =>
+    Effect.gen(function* () {
+      const killed: Array<number> = [];
+      const outputStarted = yield* Deferred.make<void>();
+      const spawner = ChildProcessSpawner.make(() =>
+        Effect.gen(function* () {
+          const handle = makeHandle({
+            pid: 602,
+            all: Stream.fromEffect(Deferred.succeed(outputStarted, undefined)).pipe(
+              Stream.flatMap(() => Stream.never),
+            ),
+            onKill: () => {
+              killed.push(602);
+            },
+          });
+          yield* Effect.addFinalizer(() => handle.kill().pipe(Effect.ignore));
+          return handle;
+        }),
+      );
+      const runtime = yield* buildCloudManagedEndpointRuntime(spawner);
+
+      const statusFiber = yield* runtime
+        .applyConfig({
+          providerKind: "cloudflare_tunnel",
+          connectorToken: "token-secret",
+          tunnelId: "tunnel-1",
+        })
+        .pipe(Effect.forkChild);
+      yield* Deferred.await(outputStarted);
+      yield* Fiber.interrupt(statusFiber);
+
+      expect(killed).toEqual([602]);
+    }),
+  );
+
   it.effect("reports connector spawn failures", () =>
     Effect.gen(function* () {
       const spawner = ChildProcessSpawner.make(() =>

@@ -313,7 +313,7 @@ export const make = Effect.gen(function* () {
       yield* Ref.set(activeRef, connector);
       yield* Effect.forkIn(observeConnectorOutput(connector), connectorScope);
       yield* Effect.forkIn(superviseConnector(connector), connectorScope);
-      return yield* awaitConnectorConnection(connector);
+      return yield* awaitConnectorConnection(connector).pipe(Effect.onInterrupt(() => stopActive));
     }
 
     return {
