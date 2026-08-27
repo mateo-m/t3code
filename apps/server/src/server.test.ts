@@ -2096,6 +2096,38 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
+  it.effect("rejects unauthenticated managed tunnel link proofs through a TCP forward", () =>
+    Effect.gen(function* () {
+      yield* buildAppUnderTest();
+
+      const linkProofUrl = yield* getHttpServerUrl("/api/connect/link-proof");
+      const serverPort = Number(new URL(linkProofUrl).port);
+      const { port: forwardedPort } = yield* openTcpForward(serverPort);
+      const linkProofResponse = yield* fetchEffect(
+        `http://127.0.0.1:${forwardedPort}/api/connect/link-proof`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: jsonRequestBody({
+            challenge: "relay-link-challenge",
+            relayIssuer: "https://relay.example.test",
+            endpoint: {
+              httpBaseUrl: `http://127.0.0.1:${forwardedPort}`,
+              wsBaseUrl: `ws://127.0.0.1:${forwardedPort}/ws`,
+              providerKind: "cloudflare_tunnel",
+            },
+            origin: {
+              localHttpHost: "127.0.0.1",
+              localHttpPort: forwardedPort,
+            },
+          }),
+        },
+      );
+
+      assert.equal(linkProofResponse.status, 401);
+    }).pipe(Effect.provide(NodeHttpServer.layerTest)),
+  );
+
   it.effect("rejects cloud link proofs requested through a public managed endpoint", () =>
     Effect.gen(function* () {
       yield* buildAppUnderTest();
