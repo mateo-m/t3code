@@ -344,15 +344,19 @@ describe("CloudManagedEndpointRuntime", () => {
   it.effect("does not report a running connector before Cloudflare registers it", () =>
     Effect.gen(function* () {
       const killed: Array<number> = [];
+      const registerConnection = yield* Deferred.make<void>();
       const spawner = ChildProcessSpawner.make(() =>
         Effect.gen(function* () {
           const handle = makeHandle({
             pid: 600,
-            all: Stream.make(
-              new TextEncoder().encode(
-                "2026-08-27T10:00:00Z WRN Failed to dial edge with token-secret\n",
+            all: Stream.fromEffect(Deferred.await(registerConnection)).pipe(
+              Stream.map(() =>
+                new TextEncoder().encode(
+                  "2026-08-27T10:00:00Z INF Registered tunnel connection connIndex=0\n",
+                ),
               ),
-            ).pipe(Stream.concat(Stream.never)),
+              Stream.concat(Stream.never),
+            ),
             onKill: () => {
               killed.push(600);
             },
@@ -384,24 +388,49 @@ describe("CloudManagedEndpointRuntime", () => {
           "Relay client did not register a tunnel connection within 15 seconds. Check whether the network allows outbound TCP and UDP traffic on port 7844.",
         tunnelId: "tunnel-1",
       });
-      expect(killed).toEqual([600]);
+      expect(killed).toEqual([]);
+
+      yield* Deferred.succeed(registerConnection, undefined);
+      const recovered = yield* runtime.applyConfig({
+        providerKind: "cloudflare_tunnel",
+        connectorToken: "token-secret",
+        tunnelId: "tunnel-1",
+      });
+
+      expect(recovered).toMatchObject({
+        status: "running",
+        pid: 600,
+        tunnelId: "tunnel-1",
+      });
+      expect(killed).toEqual([]);
     }),
   );
 
-  it.effect("reports a connector that exits before Cloudflare registers it", () =>
+  it.effect("restarts a connector that exits before Cloudflare registers it", () =>
     Effect.gen(function* () {
       const killed: Array<number> = [];
+      let spawnCount = 0;
+      const secondSpawned = yield* Deferred.make<void>();
       const spawner = ChildProcessSpawner.make(() =>
         Effect.gen(function* () {
+          spawnCount += 1;
+          const pid = 600 + spawnCount;
           const handle = makeHandle({
-            pid: 601,
-            all: Stream.never,
-            exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(1)),
+            pid,
+            ...(spawnCount === 1
+              ? {
+                  all: Stream.never,
+                  exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(1)),
+                }
+              : {}),
             onKill: () => {
-              killed.push(601);
+              killed.push(pid);
             },
           });
           yield* Effect.addFinalizer(() => handle.kill().pipe(Effect.ignore));
+          if (spawnCount === 2) {
+            yield* Deferred.succeed(secondSpawned, undefined);
+          }
           return handle;
         }),
       );
@@ -419,7 +448,53 @@ describe("CloudManagedEndpointRuntime", () => {
         reason: "Relay client exited before it registered a tunnel connection.",
         tunnelId: "tunnel-1",
       });
+      yield* Deferred.await(secondSpawned);
+      const recovered = yield* runtime.applyConfig({
+        providerKind: "cloudflare_tunnel",
+        connectorToken: "token-secret",
+        tunnelId: "tunnel-1",
+      });
+
+      expect(recovered).toMatchObject({
+        status: "running",
+        providerKind: "cloudflare_tunnel",
+        pid: 602,
+        tunnelId: "tunnel-1",
+      });
       expect(killed).toEqual([601]);
+    }),
+  );
+
+  it.effect("stops a connector when its first configuration is interrupted during spawn", () =>
+    Effect.gen(function* () {
+      const killed: Array<number> = [];
+      const processStarted = yield* Deferred.make<void>();
+      const spawner = ChildProcessSpawner.make(() =>
+        Effect.gen(function* () {
+          const handle = makeHandle({
+            pid: 602,
+            onKill: () => {
+              killed.push(602);
+            },
+          });
+          yield* Effect.addFinalizer(() => handle.kill().pipe(Effect.ignore));
+          yield* Deferred.succeed(processStarted, undefined);
+          return yield* Effect.never;
+        }),
+      );
+      const runtime = yield* buildCloudManagedEndpointRuntime(spawner);
+
+      const statusFiber = yield* runtime
+        .applyConfig({
+          providerKind: "cloudflare_tunnel",
+          connectorToken: "token-secret",
+          tunnelId: "tunnel-1",
+        })
+        .pipe(Effect.forkChild);
+      yield* Deferred.await(processStarted);
+      yield* Fiber.interrupt(statusFiber);
+
+      expect(killed).toEqual([602]);
     }),
   );
 
