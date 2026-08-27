@@ -51,7 +51,7 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as HttpEffect from "effect/unstable/http/HttpEffect";
-import { HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
+import { HttpServer, HttpServerRequest, HttpServerResponse } from "effect/unstable/http";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http";
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder";
 
@@ -296,7 +296,7 @@ function endpointRequestPort(url: URL): number {
   return Number(url.port || (url.protocol === "https:" ? 443 : 80));
 }
 
-function isAllowedEndpointOrigin(input: {
+function hasAllowedEndpointOriginHost(input: {
   readonly origin: RelayManagedEndpointOrigin;
   readonly requestUrl: string;
 }): boolean {
@@ -309,6 +309,18 @@ function isAllowedEndpointOrigin(input: {
     return false;
   }
 
+  return true;
+}
+
+function isAllowedEndpointOrigin(input: {
+  readonly origin: RelayManagedEndpointOrigin;
+  readonly requestUrl: string;
+}): boolean {
+  if (!hasAllowedEndpointOriginHost(input)) {
+    return false;
+  }
+
+  const url = new URL(input.requestUrl);
   return input.origin.localHttpPort === endpointRequestPort(url);
 }
 
@@ -433,7 +445,28 @@ const cloudLinkProofHandler = Effect.fn("environment.cloud.linkProof")(
         message: "Invalid managed endpoint origin.",
       });
     }
-    const proof = yield* makeCloudLinkProof(dependencies, request, requestUrl);
+    let proofRequest = request;
+    let proofRequestUrl = requestUrl;
+    if (request.endpoint.providerKind === "cloudflare_tunnel") {
+      const server = yield* HttpServer.HttpServer;
+      if (
+        server.address._tag !== "TcpAddress" ||
+        !hasAllowedEndpointOriginHost({ origin: request.origin, requestUrl })
+      ) {
+        return yield* new EnvironmentHttpBadRequestError({
+          message: "Invalid managed endpoint origin.",
+        });
+      }
+      proofRequest = {
+        ...request,
+        origin: {
+          localHttpHost: "127.0.0.1",
+          localHttpPort: server.address.port,
+        },
+      };
+      proofRequestUrl = `http://127.0.0.1:${server.address.port}`;
+    }
+    const proof = yield* makeCloudLinkProof(dependencies, proofRequest, proofRequestUrl);
     yield* appendCloudCredentialResponseHeaders;
     return proof satisfies RelayEnvironmentLinkProof;
   },
