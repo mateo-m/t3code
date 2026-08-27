@@ -2103,12 +2103,11 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
       const linkProofUrl = yield* getHttpServerUrl("/api/connect/link-proof");
       const serverPort = Number(new URL(linkProofUrl).port);
       const { port: forwardedPort } = yield* openTcpForward(serverPort);
-      const linkProofResponse = yield* fetchEffect(
+      const linkProofRequest = HttpClientRequest.post(
         `http://127.0.0.1:${forwardedPort}/api/connect/link-proof`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: jsonRequestBody({
+      ).pipe(
+        HttpClientRequest.bodyText(
+          jsonRequestBody({
             challenge: "relay-link-challenge",
             relayIssuer: "https://relay.example.test",
             endpoint: {
@@ -2121,7 +2120,12 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
               localHttpPort: forwardedPort,
             },
           }),
-        },
+          "application/json",
+        ),
+      );
+      const linkProofResponse = yield* HttpClient.execute(linkProofRequest).pipe(
+        Effect.provide(FetchHttpClient.layer),
+        Effect.mapError((cause) => new TestHttpRequestError({ cause })),
       );
 
       assert.equal(linkProofResponse.status, 401);
