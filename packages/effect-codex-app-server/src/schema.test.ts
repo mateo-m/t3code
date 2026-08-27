@@ -29,4 +29,45 @@ it("accepts Codex 0.150 multi-agent values", () => {
     Schema.is(CodexSchema.V2ThreadResumeResponse__CollabAgentToolCallStatus)("interrupted"),
     true,
   );
+
+  const resumeResponse = {
+    approvalPolicy: "never",
+    approvalsReviewer: "user",
+    cwd: "/tmp/project",
+    model: "gpt-5.6-sol",
+    modelProvider: "openai",
+    sandbox: { type: "dangerFullAccess" },
+    thread: {
+      cliVersion: "0.150.0",
+      createdAt: 0,
+      cwd: "/tmp/project",
+      ephemeral: false,
+      id: "root-thread",
+      modelProvider: "openai",
+      preview: "",
+      sessionId: "session-1",
+      source: "cli",
+      status: { type: "idle" },
+      turns: [
+        {
+          id: "turn-1",
+          status: "completed",
+          items: [
+            {
+              agentsStates: {},
+              id: "item-1",
+              receiverThreadIds: ["child-thread"],
+              senderThreadId: "root-thread",
+              status: "interrupted",
+              tool: "followupTask",
+              type: "collabAgentToolCall",
+            },
+          ],
+        },
+      ],
+      updatedAt: 0,
+    },
+  };
+
+  assert.equal(Schema.is(CodexSchema.V2ThreadResumeResponse)(resumeResponse), true);
 });

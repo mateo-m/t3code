@@ -20636,7 +20636,7 @@ export const ServerNotification__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -20645,6 +20645,10 @@ export const ServerNotification__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -21724,7 +21728,7 @@ export const V2ItemCompletedNotification__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -21733,6 +21737,10 @@ export const V2ItemCompletedNotification__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -22175,7 +22183,7 @@ export const V2ItemStartedNotification__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -22184,6 +22192,10 @@ export const V2ItemStartedNotification__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -22795,7 +22807,7 @@ export const V2ReviewStartResponse__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -22804,6 +22816,10 @@ export const V2ReviewStartResponse__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -23231,7 +23247,7 @@ export const V2ThreadForkResponse__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -23240,6 +23256,10 @@ export const V2ThreadForkResponse__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -23636,7 +23656,7 @@ export const V2ThreadListResponse__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -23645,6 +23665,10 @@ export const V2ThreadListResponse__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -24046,7 +24070,7 @@ export const V2ThreadMetadataUpdateResponse__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -24055,6 +24079,10 @@ export const V2ThreadMetadataUpdateResponse__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -24451,7 +24479,7 @@ export const V2ThreadReadResponse__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -24460,6 +24488,10 @@ export const V2ThreadReadResponse__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -24864,7 +24896,7 @@ export const V2ThreadResumeResponse__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -24873,6 +24905,10 @@ export const V2ThreadResumeResponse__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -25272,7 +25308,7 @@ export const V2ThreadRollbackResponse__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -25281,6 +25317,10 @@ export const V2ThreadRollbackResponse__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -25691,7 +25731,7 @@ export const V2ThreadStartedNotification__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -25700,6 +25740,10 @@ export const V2ThreadStartedNotification__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -26096,7 +26140,7 @@ export const V2ThreadStartResponse__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -26105,6 +26149,10 @@ export const V2ThreadStartResponse__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -26504,7 +26552,7 @@ export const V2ThreadUnarchiveResponse__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -26513,6 +26561,10 @@ export const V2ThreadUnarchiveResponse__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -26914,7 +26966,7 @@ export const V2TurnCompletedNotification__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -26923,6 +26975,10 @@ export const V2TurnCompletedNotification__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -27322,7 +27378,7 @@ export const V2TurnStartedNotification__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -27331,6 +27387,10 @@ export const V2TurnStartedNotification__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
@@ -27725,7 +27785,7 @@ export const V2TurnStartResponse__ThreadItem = Schema.Union(
       senderThreadId: Schema.String.annotate({
         description: "Thread ID of the agent issuing the collab request.",
       }),
-      status: Schema.Literals(["inProgress", "completed", "failed"]).annotate({
+      status: Schema.Literals(["inProgress", "completed", "failed", "interrupted"]).annotate({
         description: "Current status of the collab tool call.",
       }),
       tool: Schema.Literals([
@@ -27734,6 +27794,10 @@ export const V2TurnStartResponse__ThreadItem = Schema.Union(
         "resumeAgent",
         "wait",
         "closeAgent",
+        "sendMessage",
+        "followupTask",
+        "interruptAgent",
+        "listAgents",
       ]).annotate({ description: "Name of the collab tool that was invoked." }),
       type: Schema.Literal("collabAgentToolCall").annotate({
         title: "CollabAgentToolCallThreadItemType",
