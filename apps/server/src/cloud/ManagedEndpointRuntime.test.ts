@@ -291,6 +291,68 @@ describe("CloudManagedEndpointRuntime", () => {
     }),
   );
 
+  it.effect("does not block config changes while a restarted connector registers", () =>
+    Effect.gen(function* () {
+      const killed: Array<number> = [];
+      const firstExit = yield* Deferred.make<ChildProcessSpawner.ExitCode>();
+      const secondSpawned = yield* Deferred.make<void>();
+      const secondRegistration = yield* Deferred.make<void>();
+      let spawnCount = 0;
+      const spawner = ChildProcessSpawner.make(() =>
+        Effect.gen(function* () {
+          spawnCount += 1;
+          const pid = 410 + spawnCount;
+          if (spawnCount === 2) {
+            yield* Deferred.succeed(secondSpawned, undefined);
+          }
+          const handle = makeHandle({
+            pid,
+            ...(spawnCount === 1
+              ? {}
+              : {
+                  all: Stream.fromEffect(Deferred.await(secondRegistration)).pipe(
+                    Stream.map(() =>
+                      new TextEncoder().encode(
+                        "2026-08-27T10:00:00Z INF Registered tunnel connection connIndex=0\n",
+                      ),
+                    ),
+                  ),
+                }),
+            exitCode:
+              spawnCount === 1
+                ? Deferred.await(firstExit)
+                : (Effect.never as Effect.Effect<ChildProcessSpawner.ExitCode>),
+            onKill: () => {
+              killed.push(pid);
+            },
+          });
+          yield* Effect.addFinalizer(() => handle.kill().pipe(Effect.ignore));
+          return handle;
+        }),
+      );
+      const runtime = yield* buildCloudManagedEndpointRuntime(spawner);
+
+      yield* runtime.applyConfig({
+        providerKind: "cloudflare_tunnel",
+        connectorToken: "token",
+        tunnelId: "tunnel-1",
+      });
+      yield* Deferred.succeed(firstExit, ChildProcessSpawner.ExitCode(1));
+      yield* Deferred.await(secondSpawned);
+
+      const stopFiber = yield* runtime.applyConfig(null).pipe(Effect.forkChild);
+      yield* Effect.yieldNow;
+      yield* Effect.yieldNow;
+      const stopped = stopFiber.pollUnsafe();
+      const killedAfterStop = [...killed];
+      yield* Deferred.succeed(secondRegistration, undefined);
+      yield* Fiber.join(stopFiber);
+
+      expect(stopped).toBeDefined();
+      expect(killedAfterStop).toEqual([411, 412]);
+    }),
+  );
+
   it.effect("serializes concurrent connector config changes", () =>
     Effect.gen(function* () {
       const spawned: Array<number> = [];
