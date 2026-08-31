@@ -357,6 +357,9 @@ export const make = Effect.gen(function* () {
       ),
   );
 
+  // The boot apply discards its status, so it must not hold the reconcile
+  // permit through the registration wait. The shutdown tunnel release calls
+  // applyConfig(null) under a shorter timeout and would expire behind it.
   const applyInitialConfig = (config: RelayManagedEndpointRuntimeConfig | null) =>
     reconcileSemaphore.withPermits(1)(
       Effect.gen(function* () {
@@ -366,7 +369,11 @@ export const make = Effect.gen(function* () {
           return;
         }
         yield* Ref.set(desiredConfigRef, config);
-        yield* reconcileConfig(config);
+        if (!config || config.providerKind !== "cloudflare_tunnel") {
+          yield* stopActive;
+          return;
+        }
+        yield* startConnector(config, runtimeConfigKey(config));
       }),
     );
 
@@ -381,8 +388,8 @@ export const make = Effect.gen(function* () {
       ),
     ),
   );
-  // The startup fiber can hold the reconcile permit for the full registration
-  // wait. Interrupt it first so shutdown does not queue behind that wait.
+  // Interrupt a boot apply that still starts the connector, so the final
+  // reconcile does not wait for a spawn it will stop right after.
   const startup = yield* applyInitialConfig(initialConfig).pipe(Effect.forkScoped);
   yield* Effect.addFinalizer(() =>
     Fiber.interrupt(startup).pipe(Effect.andThen(runtime.applyConfig(null))),

@@ -649,6 +649,65 @@ describe("CloudManagedEndpointRuntime", () => {
     }),
   );
 
+  it.effect("stops the boot connector without waiting for it to register", () =>
+    Effect.gen(function* () {
+      const killed: Array<number> = [];
+      const spawned = yield* Deferred.make<void>();
+      const spawner = ChildProcessSpawner.make(() =>
+        Effect.gen(function* () {
+          const handle = makeHandle({
+            pid: 701,
+            all: Stream.never,
+            onKill: () => {
+              killed.push(701);
+            },
+          });
+          yield* Effect.addFinalizer(() => handle.kill().pipe(Effect.ignore));
+          yield* Deferred.succeed(spawned, undefined);
+          return handle;
+        }),
+      );
+      const configJson = yield* encodeEndpointRuntimeConfigJson({
+        providerKind: "cloudflare_tunnel",
+        connectorToken: "token-secret",
+        tunnelId: "tunnel-1",
+      });
+      const secretStoreLayer = Layer.mock(ServerSecretStore.ServerSecretStore)({
+        get: (name) =>
+          Effect.succeed(
+            name === CLOUD_ENDPOINT_RUNTIME_CONFIG
+              ? Option.some(new TextEncoder().encode(configJson))
+              : Option.none(),
+          ),
+      });
+
+      const scope = yield* Scope.make("sequential");
+      const context = yield* Layer.build(
+        ManagedEndpointRuntime.layer.pipe(
+          Layer.provide(
+            Layer.mergeAll(
+              Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner),
+              relayClientAvailableLayer,
+              secretStoreLayer,
+            ),
+          ),
+        ),
+      ).pipe(Effect.provideService(Scope.Scope, scope));
+      const runtime = yield* Effect.service(
+        ManagedEndpointRuntime.CloudManagedEndpointRuntime,
+      ).pipe(Effect.provide(context));
+      yield* Deferred.await(spawned);
+
+      // The shutdown tunnel release runs this call under a 10 second timeout.
+      // It must not queue behind a boot apply that waits for registration.
+      const stopped = yield* runtime.applyConfig(null);
+
+      expect(stopped).toEqual({ status: "disabled" });
+      expect(killed).toEqual([701]);
+      yield* Scope.close(scope, Exit.void);
+    }),
+  );
+
   it.effect("reports connector spawn failures", () =>
     Effect.gen(function* () {
       const spawner = ChildProcessSpawner.make(() =>
