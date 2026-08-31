@@ -2,10 +2,12 @@ import { describe, expect, it } from "@effect/vitest";
 import { vi } from "vite-plus/test";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as PlatformError from "effect/PlatformError";
+import * as Scope from "effect/Scope";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
@@ -13,6 +15,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 import * as RelayClient from "@t3tools/shared/relayClient";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
+import { CLOUD_ENDPOINT_RUNTIME_CONFIG, encodeEndpointRuntimeConfigJson } from "./config.ts";
 import * as ManagedEndpointRuntime from "./ManagedEndpointRuntime.ts";
 
 const relayClientAvailableLayer = Layer.succeed(
@@ -592,6 +595,57 @@ describe("CloudManagedEndpointRuntime", () => {
       yield* Fiber.interrupt(statusFiber);
 
       expect(killed).toEqual([602]);
+    }),
+  );
+
+  it.effect("builds the layer without waiting for a persisted config to register", () =>
+    Effect.gen(function* () {
+      const killed: Array<number> = [];
+      const spawned = yield* Deferred.make<void>();
+      const spawner = ChildProcessSpawner.make(() =>
+        Effect.gen(function* () {
+          const handle = makeHandle({
+            pid: 700,
+            all: Stream.never,
+            onKill: () => {
+              killed.push(700);
+            },
+          });
+          yield* Effect.addFinalizer(() => handle.kill().pipe(Effect.ignore));
+          yield* Deferred.succeed(spawned, undefined);
+          return handle;
+        }),
+      );
+      const configJson = yield* encodeEndpointRuntimeConfigJson({
+        providerKind: "cloudflare_tunnel",
+        connectorToken: "token-secret",
+        tunnelId: "tunnel-1",
+      });
+      const secretStoreLayer = Layer.mock(ServerSecretStore.ServerSecretStore)({
+        get: (name) =>
+          Effect.succeed(
+            name === CLOUD_ENDPOINT_RUNTIME_CONFIG
+              ? Option.some(new TextEncoder().encode(configJson))
+              : Option.none(),
+          ),
+      });
+
+      const scope = yield* Scope.make("sequential");
+      yield* Layer.build(
+        ManagedEndpointRuntime.layer.pipe(
+          Layer.provide(
+            Layer.mergeAll(
+              Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner),
+              relayClientAvailableLayer,
+              secretStoreLayer,
+            ),
+          ),
+        ),
+      ).pipe(Effect.provideService(Scope.Scope, scope));
+      yield* Deferred.await(spawned);
+      yield* Scope.close(scope, Exit.void);
+
+      expect(killed).toEqual([700]);
     }),
   );
 

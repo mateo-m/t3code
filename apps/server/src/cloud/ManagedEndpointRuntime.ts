@@ -4,6 +4,7 @@ import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
@@ -108,6 +109,7 @@ export const make = Effect.gen(function* () {
   const relayClient = yield* RelayClient.RelayClient;
   const activeRef = yield* Ref.make<ActiveConnector | null>(null);
   const desiredConfigRef = yield* Ref.make<RelayManagedEndpointRuntimeConfig | null>(null);
+  const configApplied = yield* Ref.make(false);
   const reconcileSemaphore = yield* Semaphore.make(1);
   let startConnector: (
     config: RelayManagedEndpointRuntimeConfig,
@@ -348,9 +350,25 @@ export const make = Effect.gen(function* () {
   const applyConfig = Effect.fn("CloudManagedEndpointRuntime.applyConfig")(
     (config: RelayManagedEndpointRuntimeConfig | null) =>
       reconcileSemaphore.withPermits(1)(
-        Ref.set(desiredConfigRef, config).pipe(Effect.andThen(reconcileConfig(config))),
+        Ref.set(configApplied, true).pipe(
+          Effect.andThen(Ref.set(desiredConfigRef, config)),
+          Effect.andThen(reconcileConfig(config)),
+        ),
       ),
   );
+
+  const applyInitialConfig = (config: RelayManagedEndpointRuntimeConfig | null) =>
+    reconcileSemaphore.withPermits(1)(
+      Effect.gen(function* () {
+        // A caller can apply a config while the boot apply still waits for the
+        // permit. That newer config wins. The boot config must not replace it.
+        if (yield* Ref.get(configApplied)) {
+          return;
+        }
+        yield* Ref.set(desiredConfigRef, config);
+        yield* reconcileConfig(config);
+      }),
+    );
 
   const runtime = CloudManagedEndpointRuntime.of({
     applyConfig,
@@ -363,8 +381,12 @@ export const make = Effect.gen(function* () {
       ),
     ),
   );
-  yield* runtime.applyConfig(initialConfig);
-  yield* Effect.addFinalizer(() => runtime.applyConfig(null));
+  // The startup fiber can hold the reconcile permit for the full registration
+  // wait. Interrupt it first so shutdown does not queue behind that wait.
+  const startup = yield* applyInitialConfig(initialConfig).pipe(Effect.forkScoped);
+  yield* Effect.addFinalizer(() =>
+    Fiber.interrupt(startup).pipe(Effect.andThen(runtime.applyConfig(null))),
+  );
   return runtime;
 });
 
