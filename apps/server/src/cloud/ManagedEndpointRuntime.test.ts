@@ -10,6 +10,7 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as PlatformError from "effect/PlatformError";
+import * as References from "effect/References";
 import * as Scope from "effect/Scope";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
@@ -95,6 +96,99 @@ function makeHandle(input: {
 }
 
 describe("CloudManagedEndpointRuntime", () => {
+  it.effect.each([
+    { change: "replacement", maxOps: 64 },
+    { change: "replacement", maxOps: 2048 },
+    { change: "disable", maxOps: 64 },
+    { change: "disable", maxOps: 2048 },
+  ])(
+    "does not report a stopped connector after $change with scheduling budget $maxOps",
+    ({ change, maxOps }) =>
+      Effect.gen(function* () {
+        const receipts: Array<string> = [];
+        let count = 0;
+        const spawner = ChildProcessSpawner.make(() =>
+          Effect.gen(function* () {
+            const pid = 710 + count++;
+            const handle = makeHandle({
+              pid,
+              isRunning: () => !receipts.includes(`killed-${pid}`),
+              onKill: () => receipts.push(`killed-${pid}`),
+            });
+            yield* Effect.addFinalizer(() => handle.kill().pipe(Effect.ignore));
+            return handle;
+          }),
+        );
+        const runtime = yield* buildCloudManagedEndpointRuntime(spawner);
+        const config = {
+          providerKind: "cloudflare_tunnel" as const,
+          connectorToken: "first",
+          tunnelId: "old-tunnel",
+        };
+        expect(yield* runtime.applyConfig(config)).toMatchObject({ status: "running", pid: 710 });
+        const replacement =
+          change === "disable"
+            ? null
+            : { ...config, connectorToken: "replacement", tunnelId: "new-tunnel" };
+        const statuses = yield* Effect.all(
+          [
+            runtime
+              .applyConfig(config)
+              .pipe(
+                Effect.tap((status) => Effect.sync(() => receipts.push(`first-${status.status}`))),
+              ),
+            runtime
+              .applyConfig(replacement)
+              .pipe(
+                Effect.tap((status) => Effect.sync(() => receipts.push(`second-${status.status}`))),
+              ),
+          ],
+          { concurrency: 2 },
+        );
+        expect(statuses[1]).toMatchObject(
+          change === "disable"
+            ? { status: "disabled" }
+            : { status: "running", pid: 711, tunnelId: "new-tunnel" },
+        );
+        expect(statuses[0]).toMatchObject({ tunnelId: "old-tunnel" });
+        expect(receipts).toContain("killed-710");
+        if (statuses[0].status === "running") {
+          expect(statuses[0].pid).toBe(710);
+          expect(receipts.indexOf("first-running")).toBeLessThan(receipts.indexOf("killed-710"));
+        } else {
+          expect(statuses[0]).toMatchObject({
+            status: "failed",
+            reason: "Relay client configuration changed before its connection could be confirmed.",
+          });
+        }
+        // Default scheduling and a shorter operation budget exercise both request
+        // orderings without delaying process finalizers or sleeping in the fixture.
+      }).pipe(Effect.provideService(References.MaxOpsBeforeYield, maxOps)),
+  );
+  it.effect("does not report registration as ready when the child is no longer running", () =>
+    Effect.gen(function* () {
+      const spawner = ChildProcessSpawner.make(() =>
+        Effect.gen(function* () {
+          const handle = makeHandle({ pid: 720, isRunning: () => false, onKill: () => {} });
+          yield* Effect.addFinalizer(() => handle.kill().pipe(Effect.ignore));
+          return handle;
+        }),
+      );
+      const runtime = yield* buildCloudManagedEndpointRuntime(spawner);
+      expect(
+        yield* runtime.applyConfig({
+          providerKind: "cloudflare_tunnel",
+          connectorToken: "stopped",
+          tunnelId: "stopped-tunnel",
+        }),
+      ).toEqual({
+        status: "failed",
+        providerKind: "cloudflare_tunnel",
+        tunnelId: "stopped-tunnel",
+        reason: "Relay client is no longer running or its status could not be confirmed.",
+      });
+    }),
+  );
   it.effect("a live owned child is not ready until its real output reports registration", () =>
     Effect.gen(function* () {
       const nativeSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;

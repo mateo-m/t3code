@@ -137,31 +137,50 @@ export const make = Effect.gen(function* () {
   const awaitConnectorConnection = Effect.fn(
     "CloudManagedEndpointRuntime.awaitConnectorConnection",
   )(function* (connector: ActiveConnector) {
+    const failed = (reason: string) =>
+      ({
+        status: "failed",
+        providerKind: "cloudflare_tunnel",
+        reason,
+        ...(connector.config.tunnelId ? { tunnelId: connector.config.tunnelId } : {}),
+        ...(connector.config.tunnelName ? { tunnelName: connector.config.tunnelName } : {}),
+      }) satisfies CloudManagedEndpointRuntimeStatus;
     const outcome = yield* Deferred.await(connector.connected).pipe(
       Effect.as("connected" as const),
       Effect.race(Effect.result(connector.child.exitCode).pipe(Effect.as("exited" as const))),
       Effect.timeoutOption(RELAY_CONNECTION_TIMEOUT),
     );
     if (Option.isSome(outcome) && outcome.value === "connected") {
-      return {
-        status: "running",
-        providerKind: "cloudflare_tunnel",
-        pid: Number(connector.child.pid),
-        ...(connector.config.tunnelId ? { tunnelId: connector.config.tunnelId } : {}),
-        ...(connector.config.tunnelName ? { tunnelName: connector.config.tunnelName } : {}),
-      } satisfies CloudManagedEndpointRuntimeStatus;
+      return yield* reconcileSemaphore.withPermits(1)(
+        Effect.gen(function* () {
+          if ((yield* Ref.get(activeRef)) !== connector) {
+            return failed(
+              "Relay client configuration changed before its connection could be confirmed.",
+            );
+          }
+          const isRunning = yield* connector.child.isRunning.pipe(
+            Effect.orElseSucceed(() => false),
+          );
+          if (!isRunning) {
+            return failed(
+              "Relay client is no longer running or its status could not be confirmed.",
+            );
+          }
+          return {
+            status: "running",
+            providerKind: "cloudflare_tunnel",
+            pid: Number(connector.child.pid),
+            ...(connector.config.tunnelId ? { tunnelId: connector.config.tunnelId } : {}),
+            ...(connector.config.tunnelName ? { tunnelName: connector.config.tunnelName } : {}),
+          } satisfies CloudManagedEndpointRuntimeStatus;
+        }),
+      );
     }
 
     const reason = Option.isSome(outcome)
       ? "Relay client exited before it registered a tunnel connection."
       : `Relay client did not register a tunnel connection within ${RELAY_CONNECTION_TIMEOUT}. Check whether the network allows outbound TCP and UDP traffic on port 7844.`;
-    return {
-      status: "failed",
-      providerKind: "cloudflare_tunnel",
-      reason,
-      ...(connector.config.tunnelId ? { tunnelId: connector.config.tunnelId } : {}),
-      ...(connector.config.tunnelName ? { tunnelName: connector.config.tunnelName } : {}),
-    } satisfies CloudManagedEndpointRuntimeStatus;
+    return failed(reason);
   });
 
   const superviseConnector = (connector: ActiveConnector) =>
