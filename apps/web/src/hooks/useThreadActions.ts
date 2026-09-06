@@ -5,7 +5,7 @@ import {
   scopedThreadKey,
 } from "@t3tools/client-runtime/environment";
 import { settlePromise, squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
-import { canSettle, canSnooze, threadWokeAt } from "@t3tools/client-runtime/state/thread-settled";
+import { canSnooze, threadWokeAt } from "@t3tools/client-runtime/state/thread-settled";
 import { EnvironmentId, type ScopedThreadRef, ThreadId } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Schema from "effect/Schema";
@@ -61,18 +61,6 @@ export class ThreadSettlementUnsupportedError extends Schema.TaggedErrorClass<Th
 ) {
   override get message(): string {
     return "This environment's server does not support settling yet. Update the server to use Settle.";
-  }
-}
-
-export class ThreadSettleBlockedError extends Schema.TaggedErrorClass<ThreadSettleBlockedError>()(
-  "ThreadSettleBlockedError",
-  {
-    environmentId: EnvironmentId,
-    threadId: ThreadId,
-  },
-) {
-  override get message(): string {
-    return "This thread still needs attention. Resolve or interrupt it first, then try again.";
   }
 }
 
@@ -154,6 +142,21 @@ export async function requestThreadUnpinConfirmation(input: {
       ].join("\n"),
     ),
   );
+}
+
+/** Report navigation separately so a completed deletion can still finish worktree cleanup. */
+export async function navigateAfterThreadDeletion(navigate: () => Promise<void>) {
+  const result = await settlePromise(navigate);
+  if (result._tag === "Failure") {
+    const error = squashAtomCommandFailure(result);
+    toastManager.add(
+      stackedThreadToast({
+        type: "error",
+        title: "Thread deleted, but navigation failed",
+        description: error instanceof Error ? error.message : "An error occurred.",
+      }),
+    );
+  }
 }
 
 export function useThreadActions() {
@@ -395,39 +398,20 @@ export function useThreadActions() {
       clearTerminalUiState(threadRef);
 
       if (shouldNavigateToFallback) {
-        if (fallbackThreadId) {
-          const fallbackThread = readThreadShell(
-            scopeThreadRef(threadRef.environmentId, fallbackThreadId),
-          );
-          if (fallbackThread) {
-            const navigationResult = await settlePromise(() =>
-              router.navigate({
+        const fallbackThread = fallbackThreadId
+          ? readThreadShell(scopeThreadRef(threadRef.environmentId, fallbackThreadId))
+          : null;
+        await navigateAfterThreadDeletion(() =>
+          fallbackThread
+            ? router.navigate({
                 to: "/$environmentId/$threadId",
                 params: buildThreadRouteParams(
                   scopeThreadRef(fallbackThread.environmentId, fallbackThread.id),
                 ),
                 replace: true,
-              }),
-            );
-            if (navigationResult._tag === "Failure") {
-              return navigationResult;
-            }
-          } else {
-            const navigationResult = await settlePromise(() =>
-              router.navigate({ to: "/", replace: true }),
-            );
-            if (navigationResult._tag === "Failure") {
-              return navigationResult;
-            }
-          }
-        } else {
-          const navigationResult = await settlePromise(() =>
-            router.navigate({ to: "/", replace: true }),
-          );
-          if (navigationResult._tag === "Failure") {
-            return navigationResult;
-          }
-        }
+              })
+            : router.navigate({ to: "/", replace: true }),
+        );
       }
 
       if (!shouldDeleteWorktree || !orphanedWorktreePath || !threadProject) {
@@ -456,9 +440,10 @@ export function useThreadActions() {
             ? refreshResult
             : null;
       if (cleanupFailure) {
+        const removalFailed = removeResult._tag === "Failure";
         const error = squashAtomCommandFailure(cleanupFailure);
-        const message = error instanceof Error ? error.message : "Unknown error removing worktree.";
-        console.error("Failed to remove orphaned worktree after thread deletion", {
+        const message = error instanceof Error ? error.message : "An error occurred.";
+        console.error("Worktree cleanup failed after thread deletion", {
           threadId: threadRef.threadId,
           projectCwd: threadProject.workspaceRoot,
           worktreePath: orphanedWorktreePath,
@@ -467,11 +452,16 @@ export function useThreadActions() {
         toastManager.add(
           stackedThreadToast({
             type: "error",
-            title: "Thread deleted, but worktree removal failed",
-            description: `Could not remove ${displayWorktreePath ?? orphanedWorktreePath}. ${message}`,
+            title: removalFailed
+              ? "Failed to delete worktree"
+              : "Worktree deleted, but Git status refresh failed",
+            description: removalFailed
+              ? `Could not remove ${displayWorktreePath ?? orphanedWorktreePath}. ${message}`
+              : message,
           }),
         );
-        return cleanupFailure;
+        // The thread was deleted. Cleanup has its own toast; returning its
+        // failure would make callers incorrectly report a thread deletion error.
       }
       return deleteResult;
     },
@@ -506,19 +496,6 @@ export function useThreadActions() {
         );
       }
       const resolved = resolveThreadTarget(target);
-      // Settle may only target what effectiveSettled could classify as
-      // settled: not starting/running sessions, not threads waiting on
-      // approvals or user input. Anything else would hide live work.
-      if (resolved && !canSettle(resolved.thread, { now: new Date().toISOString() })) {
-        return AsyncResult.failure(
-          Cause.fail(
-            new ThreadSettleBlockedError({
-              environmentId: resolved.threadRef.environmentId,
-              threadId: resolved.threadRef.threadId,
-            }),
-          ),
-        );
-      }
       const wokeAt = resolved
         ? threadWokeAt(resolved.thread, { now: new Date().toISOString() })
         : null;
